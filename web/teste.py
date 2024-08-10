@@ -30,7 +30,7 @@ colors = vtkNamedColors()
 
 # Read the source file.
 reader = vtkXMLUnstructuredGridReader()
-reader.SetFileName(os.path.join(CURRENT_DIRECTORY, "simplexos.vtu"))
+reader.SetFileName(os.path.join(CURRENT_DIRECTORY, "../exemplos/simplexos.vtu"))
 reader.Update()
 output = reader.GetOutput()
 # scalar_range = output.GetScalarRange()
