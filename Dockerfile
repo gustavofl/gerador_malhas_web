@@ -12,10 +12,14 @@ RUN pip install trame
 RUN pip install trame-vuetify trame-vtk
 RUN pip install vtk
 
+RUN apt install git -y
+
 EXPOSE 8080
 
 WORKDIR /data
 
-COPY ./* /data
+COPY ./on_start_container.sh .
 
-CMD python3 teste.py --host 0.0.0.0 --port 8080
+SHELL ["/bin/bash", "-c"]
+
+ENTRYPOINT ./on_start_container.sh

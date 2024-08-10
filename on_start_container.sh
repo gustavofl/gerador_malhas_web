@@ -1,3 +1,9 @@
-#!/bin/sh
+#!/bin/bash
 
-python3 gerador_malhas_web/teste.py --host 0.0.0.0 --port 8080
+# Se não for ambiente de desenvolvimento, baixar projeto do github
+if [ -e "${DEV}" ] || [ "${DEV}" != "true" ]; then
+  git clone https://github.com/gustavofl/gerador_malhas_web.git
+fi
+
+chmod +x /data/gerador_malhas_web/run.sh
+/data/gerador_malhas_web/run.sh
