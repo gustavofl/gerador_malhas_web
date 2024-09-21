@@ -1,18 +1,21 @@
 FROM debian:12
 
-RUN apt update
-RUN apt install python3 -y
-RUN apt install python3-venv -y
-RUN apt install ffmpeg libsm6 libxext6 -y
+RUN apt update && apt install -y \
+    python3 \
+    python3-venv \
+    ffmpeg \
+    libsm6 \
+    libxext6 \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN python3 -m venv /opt/.venv
 ENV PATH="/opt/.venv/bin:$PATH"
 
-RUN pip install trame
-RUN pip install trame-vuetify trame-vtk
-RUN pip install vtk
-
-RUN apt install git -y
+RUN pip install trame --no-cache-dir
+RUN pip install trame-vuetify trame-vtk --no-cache-dir
+RUN pip install vtk --no-cache-dir
+RUN pip install flask --no-cache-dir
 
 EXPOSE 8080
 
