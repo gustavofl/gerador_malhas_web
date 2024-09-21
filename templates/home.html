@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerar Malha</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Estilo para o menu lateral */
+        .sidebar {
+            width: 25%;
+            background-color: #333; /* Cinza escuro */
+            color: white;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .sidebar h2 {
+            text-align: center;
+        }
+
+        .sidebar label {
+            display: block;
+            margin-top: 15px;
+            margin-bottom: 5px;
+        }
+
+        .sidebar select, .sidebar input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 15px;
+            box-sizing: border-box;
+        }
+
+        .sidebar button {
+            width: 100%;
+            padding: 10px;
+            background-color: #444; /* Cinza um pouco mais claro */
+            border: none;
+            color: white;
+            cursor: pointer;
+        }
+
+        .sidebar button:hover {
+            background-color: #555;
+        }
+
+        /* Estilo para o iframe */
+        .iframe-container {
+            width: 75%;
+            background-color: #ccc; /* Cinza claro */
+            padding: 0;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Menu lateral -->
+    <div class="sidebar">
+        <h2>Configurações de Malha</h2>
+
+        <label for="externa">Função Implícita Externa</label>
+        <select id="externa" name="externa" required>
+            <option value="coracao" selected>Coração</option>
+            <option value="esfera_maior">Esfera Maior</option>
+            <option value="esfera_menor">Esfera Menor</option>
+            <option value="torus">Torus</option>
+            <option value="3-torus">3-Torus</option>
+        </select>
+
+        <label for="interna">Função Implícita Interna</label>
+        <select id="interna" name="interna">
+            <option value="none">Nenhuma</option>
+            <option value="coracao">Coração</option>
+            <option value="esfera_maior">Esfera Maior</option>
+            <option value="esfera_menor">Esfera Menor</option>
+            <option value="torus">Torus</option>
+            <option value="3-torus">3-Torus</option>
+        </select>
+
+        <label for="dominio">Tamanho do Domínio</label>
+        <input type="text" id="dominio" name="dominio" value="3">
+
+        <label for="refinamento">Nível Máximo de Refinamento</label>
+        <input type="text" id="refinamento" name="refinamento" value="2">
+
+        <label for="blocos">Quantidade de Blocos Nível Zero</label>
+        <input type="text" id="blocos" name="blocos" value="2">
+
+        <button type="submit">Gerar Malha</button>
+    </div>
+
+    <!-- Iframe para exibir os resultados -->
+    <div class="iframe-container">
+        <iframe id="resultado" name="resultado"></iframe>
+    </div>
+
+</body>
+</html>
