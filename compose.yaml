@@ -1,16 +1,6 @@
 services:
-  web:
-    container_name: web
-    image: "gustavofl/gerador_malhas_web:0.4"
+  trame:
+    container_name: trame
+    image: teste
     ports:
-      - "8080:8080"
-
-    # Comentar volumes e environment para rodar código do github
-    # Descomentar para desenvolvimento
-
-    # volumes:
-    #   - .:/data/gerador_malhas_web
-    # environment:
-    #   - DEV=true
-    
-    restart: no
+      - "8080:80"
