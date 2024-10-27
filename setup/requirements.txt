@@ -3,3 +3,4 @@ trame-vtk
 trame-vuetify
 vtk
 requests
+pytz

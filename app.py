@@ -1,8 +1,11 @@
 import os
 import requests
+import json
+import tarfile
+from datetime import datetime
+import pytz
 
 from trame.app import get_server
-from trame.ui.vuetify import SinglePageLayout
 from trame.ui.vuetify import SinglePageWithDrawerLayout
 from trame.widgets import vuetify, vtk as vtk_widgets
 
@@ -25,41 +28,20 @@ from vtkmodules.vtkRenderingCore import (
 
 CURRENT_DIRECTORY = os.path.abspath(os.path.dirname(__file__))
 
+URL_API="http://gerador-old:8080"
+LOG_FILE="/deploy/server/logs/log.txt"
+LOCAL_TIMEZONE="America/Recife"
+
+def log(mensagem):
+    utc_now = datetime.now()
+    fuso_horario = pytz.timezone(LOCAL_TIMEZONE)
+    timestamp_local = utc_now.replace(tzinfo=pytz.utc).astimezone(fuso_horario)
+    timestamp_local_str = timestamp_local.strftime("%Y-%m-%d %H:%M:%S")
+
+    with open(LOG_FILE, "a") as file:
+        file.write(f"[{timestamp_local_str}] {mensagem}\n")
+
 colors = vtkNamedColors()
-
-# url = "http://backend_old:8080/api/download/volume-interno"
-# response = requests.get(url)
-
-# if response.status_code == 200:
-#     with open(os.path.join(CURRENT_DIRECTORY, "../exemplos/simplexos.vtu"), "wb") as f:
-#         f.write(response.content)
-#     print("File downloaded successfully!")
-# else:
-#     print("Failed to download the file.")
-
-# Read the source file.
-reader = vtkXMLUnstructuredGridReader()
-# reader.SetFileName(os.path.join(CURRENT_DIRECTORY, "../exemplos/simplexos.vtu"))
-reader.SetFileName(os.path.join(CURRENT_DIRECTORY, "vtu_files/simplexos.vtu"))
-reader.Update()
-output = reader.GetOutput()
-# scalar_range = output.GetScalarRange()
-
-mapper = vtkDataSetMapper()
-mapper.SetInputData(output)
-# mapper.SetScalarRange(scalar_range)
-mapper.ScalarVisibilityOff()
-
-# Create the Actor
-actor = vtkActor()
-actor.SetMapper(mapper)
-actor.GetProperty().EdgeVisibilityOn()
-actor.GetProperty().SetLineWidth(2.0)
-actor.GetProperty().SetColor(colors.GetColor3d("MistyRose"))
-
-backface = vtkProperty()
-backface.SetColor(colors.GetColor3d('Tomato'))
-actor.SetBackfaceProperty(backface)
 
 # Create the Renderer
 renderer = vtkRenderer()
@@ -70,9 +52,31 @@ renderWindowInteractor = vtkRenderWindowInteractor()
 renderWindowInteractor.SetRenderWindow(renderWindow)
 renderWindowInteractor.GetInteractorStyle().SetCurrentStyleToTrackballCamera()
 
-renderer.AddActor(actor)
-renderer.SetBackground(colors.GetColor3d('Wheat'))
-renderer.ResetCamera()
+def gerar_view(nome_arquivo_malha):
+    # Read the source file.
+    reader = vtkXMLUnstructuredGridReader()
+    reader.SetFileName(nome_arquivo_malha)
+    reader.Update()
+    output = reader.GetOutput()
+
+    mapper = vtkDataSetMapper()
+    mapper.SetInputData(output)
+    mapper.ScalarVisibilityOff()
+
+    # Create the Actor
+    actor = vtkActor()
+    actor.SetMapper(mapper)
+    actor.GetProperty().EdgeVisibilityOn()
+    actor.GetProperty().SetLineWidth(2.0)
+    actor.GetProperty().SetColor(colors.GetColor3d("MistyRose"))
+
+    backface = vtkProperty()
+    backface.SetColor(colors.GetColor3d('Tomato'))
+    actor.SetBackfaceProperty(backface)
+
+    renderer.AddActor(actor)
+    renderer.SetBackground(colors.GetColor3d('Wheat'))
+    renderer.ResetCamera()
 
 # -----------------------------------------------------------------------------
 # Trame setup
@@ -87,14 +91,104 @@ state, ctrl = server.state, server.controller
 
 # Função que será chamada ao clicar no botão de submit
 def submit_form():
-    funcao_externa = state.funcao_externa
-    funcao_interna = state.funcao_interna
-    tamanho_dominio = state.tamanho_dominio
-    nivel_refinamento = state.nivel_refinamento
-    qnt_blocos_zero = state.qnt_blocos_zero
+    map_parametros = {
+        "-":"-",
+        "Coração":"coracao",
+        "Esfera Maior":"esfera_maior",
+        "Esfera Menor":"esfera_menor",
+        "Torus":"torus",
+        "3-Torus":"3-torus"
+    }
 
-    with open("/deploy/server/logs/log.txt", "a") as file:
-        file.write(f"tamanho_dominio = {tamanho_dominio}\n")
+    try:
+        funcao_externa = map_parametros[state.funcao_externa]
+        funcao_interna = map_parametros[state.funcao_interna]
+        tamanho_dominio = state.tamanho_dominio
+        nivel_refinamento = state.nivel_refinamento
+        qnt_blocos_zero = state.qnt_blocos_zero
+
+        data = {
+            'funcao_externa': funcao_externa,
+            'funcao_interna': funcao_interna,
+            'tamanho_dominio': tamanho_dominio,
+            'nivel_refinamento': nivel_refinamento,
+            'qnt_blocos_zero': qnt_blocos_zero
+        }
+
+        response = requests.post(f"{URL_API}/api/run", data=data)
+
+        if response.status_code == 200:
+            state.token = json.loads(response.text)['token']
+            log(f"Dados enviados com sucesso ao servidor.")
+            log(f"Resposta do servidor: {response.text}")
+            log(f"Token: {state.token}\n")
+        else:
+            log(f"Erro ao enviar dados ao servidor.")
+            log(f"Código {response.status_code}: {response.text}\n")
+    except Exception as error:
+        log(f"Erro ao preparar dados para envio ao servidor.")
+        log(f"{error}\n")
+
+# Função para obter o progresso da geração das malhas
+def get_progresso():
+    try:
+        token = state.token
+
+        data = {
+            'token': token,
+        }
+
+        response = requests.post(f"{URL_API}/api/status", data=data)
+
+        if response.status_code == 200:
+            log(f"Dados enviados com sucesso ao servidor.")
+            log(f"Resposta do servidor: {response.text}")
+        else:
+            log(f"Erro ao enviar dados ao servidor.")
+            log(f"Código {response.status_code}: {response.text}\n")
+    except Exception as error:
+        log(f"Erro ao preparar dados para envio ao servidor.")
+        log(f"{error}\n")
+
+# Função para baixar as malhas geradas
+def get_malhas():
+    try:
+        token = state.token
+
+        data = {
+            'token': token,
+        }
+
+        response = requests.post(f"{URL_API}/api/download", data=data)
+
+        if response.status_code == 200:
+            nome_arquivo = f'{token}_malhas.tar.gz'
+            diretorio_extracao = f'/deploy/vtu_files/{token}_malhas'
+
+            with open(f"/deploy/vtu_files/{nome_arquivo}", "wb") as file:
+                for chunk in response.iter_content(chunk_size=8192):
+                    file.write(chunk)
+
+            log(f"Arquivo baixado com sucesso. ({nome_arquivo})\n")
+            
+            os.makedirs(diretorio_extracao, exist_ok=True)
+
+            with tarfile.open(f"/deploy/vtu_files/{nome_arquivo}", 'r:gz') as tar:
+                tar.extractall(path=diretorio_extracao)
+
+            log(f"Arquivos extraídos com sucesso.\n")
+
+            nome_antigo = f'/deploy/vtu_files/{token}_malhas/simplexos_externos.vtu'
+            nome_novo = f'/deploy/vtu_files/malha.vtu'
+            os.rename(nome_antigo, nome_novo)
+
+            log(f"Arquivos renomeados.\n")
+        else:
+            log(f"Erro ao baixar dados do servidor.")
+            log(f"Código {response.status_code}: {response.text}\n")
+    except Exception as error:
+        log(f"Erro ao preparar requisição de download.")
+        log(f"{error}\n")
 
 
 with SinglePageWithDrawerLayout(server) as layout:
@@ -142,8 +236,16 @@ with SinglePageWithDrawerLayout(server) as layout:
 
         vuetify.VBtn("Gerar malha", click=submit_form)
 
+        vuetify.VBtn("Ver progresso", click=get_progresso)
+
+        vuetify.VBtn("Baixar malhas", click=get_malhas)
+
+        vuetify.VBtn("Recarregar página", href="/")
+
     with layout.content:
         with vuetify.VContainer(fluid=True, classes="pa-0 fill-height", ):
+            nome_arquivo = '/deploy/vtu_files/malha.vtu'
+            gerar_view(nome_arquivo)
             view = vtk_widgets.VtkLocalView(renderWindow)
 
 # -----------------------------------------------------------------------------
