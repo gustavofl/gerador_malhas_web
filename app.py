@@ -94,10 +94,10 @@ def submit_form():
     map_parametros = {
         "-":"-",
         "Coração":"coracao",
-        "Esfera Maior":"esfera_maior",
-        "Esfera Menor":"esfera_menor",
+        "Esfera Maior":"esfera2",
+        "Esfera Menor":"esfera",
         "Torus":"torus",
-        "3-Torus":"3-torus"
+        "3-Torus":"3torus"
     }
 
     try:
@@ -225,12 +225,12 @@ with SinglePageWithDrawerLayout(server) as layout:
         )
         vuetify.VTextField(
             label="Nível Máximo de Refinamento",
-            v_model=("nivel_refinamento", 2),
+            v_model=("nivel_refinamento", 3),
             type="number"
         )
         vuetify.VTextField(
             label="Quantidade de Blocos Nível Zero",
-            v_model=("qnt_blocos_zero", 2),
+            v_model=("qnt_blocos_zero", 4),
             type="number"
         )
 
