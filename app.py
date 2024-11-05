@@ -52,7 +52,7 @@ renderWindowInteractor = vtkRenderWindowInteractor()
 renderWindowInteractor.SetRenderWindow(renderWindow)
 renderWindowInteractor.GetInteractorStyle().SetCurrentStyleToTrackballCamera()
 
-def gerar_view(nome_arquivo_malha):
+def carregar_vtu(nome_arquivo_malha):
     # Read the source file.
     reader = vtkXMLUnstructuredGridReader()
     reader.SetFileName(nome_arquivo_malha)
@@ -74,7 +74,13 @@ def gerar_view(nome_arquivo_malha):
     backface.SetColor(colors.GetColor3d('Tomato'))
     actor.SetBackfaceProperty(backface)
 
-    renderer.AddActor(actor)
+    return actor
+
+def gerar_view(lista_arquivos_malhas):
+    for arquivo_malha in lista_arquivos_malhas:
+        actor = carregar_vtu(arquivo_malha)
+        renderer.AddActor(actor)
+
     renderer.SetBackground(colors.GetColor3d('Wheat'))
     renderer.ResetCamera()
 
@@ -181,7 +187,11 @@ def get_malhas():
             log(f"Arquivos extraídos com sucesso.\n")
 
             nome_antigo = f'{dir_token}/simplexos_externos.vtu'
-            nome_novo = f'/deploy/vtu_files/malha.vtu'
+            nome_novo = f'/deploy/vtu_files/malha1.vtu'
+            os.rename(nome_antigo, nome_novo)
+
+            nome_antigo = f'{dir_token}/simplexos_internos.vtu'
+            nome_novo = f'/deploy/vtu_files/malha2.vtu'
             os.rename(nome_antigo, nome_novo)
 
             log(f"Arquivos renomeados.\n")
@@ -246,8 +256,11 @@ with SinglePageWithDrawerLayout(server) as layout:
 
     with layout.content:
         with vuetify.VContainer(fluid=True, classes="pa-0 fill-height", ):
-            nome_arquivo = '/deploy/vtu_files/malha.vtu'
-            gerar_view(nome_arquivo)
+            lista_arquivos_malhas = [
+                '/deploy/vtu_files/malha1.vtu',
+                '/deploy/vtu_files/malha2.vtu'
+            ]
+            gerar_view(lista_arquivos_malhas)
             view = vtk_widgets.VtkLocalView(renderWindow)
 
 # -----------------------------------------------------------------------------
