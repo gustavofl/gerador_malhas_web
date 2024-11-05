@@ -162,23 +162,25 @@ def get_malhas():
         response = requests.post(f"{URL_API}/api/download", data=data)
 
         if response.status_code == 200:
-            nome_arquivo = f'{token}_malhas.tar.gz'
-            diretorio_extracao = f'/deploy/vtu_files/{token}_malhas'
+            dir_token = f'/deploy/vtu_files/{token}'
 
-            with open(f"/deploy/vtu_files/{nome_arquivo}", "wb") as file:
+            os.makedirs(dir_token, exist_ok=True)
+
+            nome_arquivo_tar = f'malhas.tar.gz'
+            nome_completo_arquivo_tar = f"{dir_token}/{nome_arquivo_tar}"
+
+            with open(nome_completo_arquivo_tar, "wb") as file:
                 for chunk in response.iter_content(chunk_size=8192):
                     file.write(chunk)
 
-            log(f"Arquivo baixado com sucesso. ({nome_arquivo})\n")
-            
-            os.makedirs(diretorio_extracao, exist_ok=True)
+            log(f"Arquivo baixado com sucesso. ({nome_arquivo_tar})\n")
 
-            with tarfile.open(f"/deploy/vtu_files/{nome_arquivo}", 'r:gz') as tar:
-                tar.extractall(path=diretorio_extracao)
+            with tarfile.open(nome_completo_arquivo_tar, 'r:gz') as tar:
+                tar.extractall(path=dir_token)
 
             log(f"Arquivos extraídos com sucesso.\n")
 
-            nome_antigo = f'/deploy/vtu_files/{token}_malhas/simplexos_externos.vtu'
+            nome_antigo = f'{dir_token}/simplexos_externos.vtu'
             nome_novo = f'/deploy/vtu_files/malha.vtu'
             os.rename(nome_antigo, nome_novo)
 
