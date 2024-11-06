@@ -111,6 +111,12 @@ def consultar_progresso():
     
     return 0
 
+def remover_task_ctrl():
+    try:
+        state.remover_task = True
+    except Exception as error:
+        log(f"Erro nao identificado ao remover task. [{type(error).__name__}]")
+
 # -----------------------------------------------------------------------------
 # Trame setup
 # -----------------------------------------------------------------------------
@@ -139,6 +145,9 @@ async def atualizar_progresso(**kwargs):
                     state.progresso = 100
 
                     state.monitorar_progresso = False
+
+            if(state.remover_task):
+                ctrl.remove(atualizar_progresso)
     
         log(f'Progresso: {state.progresso}')
 
@@ -294,8 +303,7 @@ with SinglePageWithDrawerLayout(server) as layout:
             rounded=True
         )
 
-        # ta duplicando a funcao atualizar_progresso a cada reload
-        vuetify.VBtn("Recarregar página", href="/")
+        vuetify.VBtn("Recarregar página", click=remover_task_ctrl, href="/")
 
     with layout.content:
         with vuetify.VContainer(fluid=True, classes="pa-0 fill-height", ):
@@ -313,5 +321,6 @@ with SinglePageWithDrawerLayout(server) as layout:
 if __name__ == "__main__":
     state.progresso = 0
     state.monitorar_progresso = False
+    state.remover_task = False
 
     server.start()
