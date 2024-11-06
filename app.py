@@ -4,6 +4,7 @@ import json
 import tarfile
 from datetime import datetime
 import pytz
+import asyncio
 
 from trame.app import get_server
 from trame.ui.vuetify import SinglePageWithDrawerLayout
@@ -84,12 +85,68 @@ def gerar_view(lista_arquivos_malhas):
     renderer.SetBackground(colors.GetColor3d('Wheat'))
     renderer.ResetCamera()
 
+# Função para consultar o progresso da API
+def consultar_progresso():
+    try:
+        token = state.token
+
+        data = {
+            'token': token,
+        }
+
+        response = requests.post(f"{URL_API}/api/status", data=data)
+
+        if response.status_code == 200:
+            progresso = float(response.json().get("progresso", 0))
+
+            return progresso
+        else:
+            log(f"Erro ao enviar dados ao servidor.")
+            log(f"Código {response.status_code}: {response.text}\n")
+    except requests.RequestException:
+        log("Erro ao consultar o progresso")
+    except Exception as error:
+        log(f"Erro nao identificado no servidor.")
+        log(f"{error}\n")
+    
+    return 0
+
 # -----------------------------------------------------------------------------
 # Trame setup
 # -----------------------------------------------------------------------------
 
 server = get_server(client_type="vue2")
 state, ctrl = server.state, server.controller
+
+# -----------------------------------------------------------------------------
+# Background thread
+# -----------------------------------------------------------------------------
+
+fator_progresso_geracao = 0.95
+
+async def atualizar_progresso(**kwargs):
+    while True:
+        with state:
+            if(state.monitorar_progresso):
+                if(state.progresso < 100*fator_progresso_geracao):
+                    progresso_geracao = consultar_progresso()
+
+                    state.progresso = progresso_geracao * fator_progresso_geracao
+                
+                elif(state.progresso == 100*fator_progresso_geracao):
+                    get_malhas()
+
+                    state.progresso = 100
+
+                    state.monitorar_progresso = False
+    
+        log(f'Progresso: {state.progresso}')
+
+        await asyncio.sleep(1)
+
+
+ctrl.on_server_ready.add_task(atualizar_progresso)
+
 
 # -----------------------------------------------------------------------------
 # Web App setup
@@ -128,27 +185,8 @@ def submit_form():
             log(f"Dados enviados com sucesso ao servidor.")
             log(f"Resposta do servidor: {response.text}")
             log(f"Token: {state.token}\n")
-        else:
-            log(f"Erro ao enviar dados ao servidor.")
-            log(f"Código {response.status_code}: {response.text}\n")
-    except Exception as error:
-        log(f"Erro ao preparar dados para envio ao servidor.")
-        log(f"{error}\n")
 
-# Função para obter o progresso da geração das malhas
-def get_progresso():
-    try:
-        token = state.token
-
-        data = {
-            'token': token,
-        }
-
-        response = requests.post(f"{URL_API}/api/status", data=data)
-
-        if response.status_code == 200:
-            log(f"Dados enviados com sucesso ao servidor.")
-            log(f"Resposta do servidor: {response.text}")
+            state.monitorar_progresso = True
         else:
             log(f"Erro ao enviar dados ao servidor.")
             log(f"Código {response.status_code}: {response.text}\n")
@@ -248,10 +286,15 @@ with SinglePageWithDrawerLayout(server) as layout:
 
         vuetify.VBtn("Gerar malha", click=submit_form)
 
-        vuetify.VBtn("Ver progresso", click=get_progresso)
+        # Barra de progresso
+        vuetify.VProgressLinear(
+            v_model=("progresso", 0),  # Barra de progresso vinculada ao estado
+            color="blue",
+            height=20,
+            rounded=True
+        )
 
-        vuetify.VBtn("Baixar malhas", click=get_malhas)
-
+        # ta duplicando a funcao atualizar_progresso a cada reload
         vuetify.VBtn("Recarregar página", href="/")
 
     with layout.content:
@@ -268,4 +311,7 @@ with SinglePageWithDrawerLayout(server) as layout:
 # -----------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    state.progresso = 0
+    state.monitorar_progresso = False
+
     server.start()
