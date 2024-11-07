@@ -5,6 +5,7 @@ import tarfile
 from datetime import datetime
 import pytz
 import asyncio
+import inspect
 
 from trame.app import get_server
 from trame.ui.vuetify import SinglePageWithDrawerLayout
@@ -113,8 +114,8 @@ def consultar_progresso():
     except requests.RequestException:
         log("Erro ao consultar o progresso")
     except Exception as error:
-        log(f"Erro nao identificado no servidor.")
-        log(f"{error}\n")
+        nome_funcao = inspect.currentframe().f_code.co_name
+        log(f"Erro nao identificado em {nome_funcao}. [{repr(error)}]")
     
     return 0
 
@@ -122,7 +123,8 @@ def remover_task_ctrl():
     try:
         state.remover_task = True
     except Exception as error:
-        log(f"Erro nao identificado ao remover task. [{type(error).__name__}]")
+        nome_funcao = inspect.currentframe().f_code.co_name
+        log(f"Erro nao identificado em {nome_funcao}. [{repr(error)}]")
 
 # -----------------------------------------------------------------------------
 # Trame setup
@@ -210,8 +212,8 @@ def submit_form():
             log(f"Erro ao enviar dados ao servidor.")
             log(f"Código {response.status_code}: {response.text}\n")
     except Exception as error:
-        log(f"Erro ao preparar dados para envio ao servidor.")
-        log(f"{error}\n")
+        nome_funcao = inspect.currentframe().f_code.co_name
+        log(f"Erro nao identificado em {nome_funcao}. [{repr(error)}]")
 
 # Função para baixar as malhas geradas
 def get_malhas():
@@ -256,8 +258,8 @@ def get_malhas():
             log(f"Erro ao baixar dados do servidor.")
             log(f"Código {response.status_code}: {response.text}\n")
     except Exception as error:
-        log(f"Erro ao preparar requisição de download.")
-        log(f"{error}\n")
+        nome_funcao = inspect.currentframe().f_code.co_name
+        log(f"Erro nao identificado em {nome_funcao}. [{repr(error)}]")
 
 @state.change("malha1_visivel")
 def update_visibilidade_malha1(malha1_visivel, **kwargs):
