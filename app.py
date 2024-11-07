@@ -109,8 +109,7 @@ def consultar_progresso():
 
             return progresso
         else:
-            log(f"Erro ao enviar dados ao servidor.")
-            log(f"Código {response.status_code}: {response.text}\n")
+            log(f"Erro ao enviar dados ao servidor. [Código {response.status_code}: {response.text}]")
     except requests.RequestException:
         log("Erro ao consultar o progresso")
     except Exception as error:
@@ -161,8 +160,6 @@ async def atualizar_progresso(**kwargs):
             if(state.remover_task):
                 ctrl.remove(atualizar_progresso)
     
-        log(f'Progresso: {state.progresso}')
-
         await asyncio.sleep(1)
 
 
@@ -203,14 +200,11 @@ def submit_form():
 
         if response.status_code == 200:
             state.token = json.loads(response.text)['token']
-            log(f"Dados enviados com sucesso ao servidor.")
-            log(f"Resposta do servidor: {response.text}")
-            log(f"Token: {state.token}\n")
-
             state.monitorar_progresso = True
+
+            log(f"Solicitacao de geracao de malha realizada com sucesso.")
         else:
-            log(f"Erro ao enviar dados ao servidor.")
-            log(f"Código {response.status_code}: {response.text}\n")
+            log(f"Erro ao enviar dados ao servidor.[Código {response.status_code}: {response.text}]")
     except Exception as error:
         nome_funcao = inspect.currentframe().f_code.co_name
         log(f"Erro nao identificado em {nome_funcao}. [{repr(error)}]")
@@ -238,12 +232,8 @@ def get_malhas():
                 for chunk in response.iter_content(chunk_size=8192):
                     file.write(chunk)
 
-            log(f"Arquivo baixado com sucesso. ({nome_arquivo_tar})\n")
-
             with tarfile.open(nome_completo_arquivo_tar, 'r:gz') as tar:
                 tar.extractall(path=dir_token)
-
-            log(f"Arquivos extraídos com sucesso.\n")
 
             nome_antigo = f'{dir_token}/simplexos_externos.vtu'
             nome_novo = f'/deploy/vtu_files/malha1.vtu'
@@ -253,10 +243,9 @@ def get_malhas():
             nome_novo = f'/deploy/vtu_files/malha2.vtu'
             os.rename(nome_antigo, nome_novo)
 
-            log(f"Arquivos renomeados.\n")
+            log(f"Malhas baixadas com sucesso.\n")
         else:
-            log(f"Erro ao baixar dados do servidor.")
-            log(f"Código {response.status_code}: {response.text}\n")
+            log(f"Erro ao baixar dados do servidor. [Código {response.status_code}: {response.text}]")
     except Exception as error:
         nome_funcao = inspect.currentframe().f_code.co_name
         log(f"Erro nao identificado em {nome_funcao}. [{repr(error)}]")
