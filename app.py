@@ -53,6 +53,9 @@ renderWindowInteractor = vtkRenderWindowInteractor()
 renderWindowInteractor.SetRenderWindow(renderWindow)
 renderWindowInteractor.GetInteractorStyle().SetCurrentStyleToTrackballCamera()
 
+malha1 = None
+malha2 = None
+
 def carregar_vtu(nome_arquivo_malha):
     # Read the source file.
     reader = vtkXMLUnstructuredGridReader()
@@ -78,9 +81,13 @@ def carregar_vtu(nome_arquivo_malha):
     return actor
 
 def gerar_view(lista_arquivos_malhas):
-    for arquivo_malha in lista_arquivos_malhas:
-        actor = carregar_vtu(arquivo_malha)
-        renderer.AddActor(actor)
+    global malha1, malha2
+
+    malha1 = carregar_vtu(lista_arquivos_malhas[0])
+    malha2 = carregar_vtu(lista_arquivos_malhas[1])
+
+    renderer.AddActor(malha1)
+    renderer.AddActor(malha2)
 
     renderer.SetBackground(colors.GetColor3d('Wheat'))
     renderer.ResetCamera()
@@ -123,6 +130,9 @@ def remover_task_ctrl():
 
 server = get_server(client_type="vue2")
 state, ctrl = server.state, server.controller
+
+state.malha1_visivel = True
+state.malha2_visivel = True
 
 # -----------------------------------------------------------------------------
 # Background thread
@@ -249,6 +259,15 @@ def get_malhas():
         log(f"Erro ao preparar requisição de download.")
         log(f"{error}\n")
 
+@state.change("malha1_visivel")
+def update_visibilidade_malha1(malha1_visivel, **kwargs):
+    malha1.SetVisibility(malha1_visivel)
+    ctrl.view_update()
+
+@state.change("malha2_visivel")
+def update_visibilidade_malha2(malha2_visivel, **kwargs):
+    malha2.SetVisibility(malha2_visivel)
+    ctrl.view_update()
 
 with SinglePageWithDrawerLayout(server) as layout:
 
@@ -305,6 +324,30 @@ with SinglePageWithDrawerLayout(server) as layout:
 
         vuetify.VBtn("Recarregar página", click=remover_task_ctrl, href="/")
 
+        vuetify.VDivider(classes="mt-5")
+
+        vuetify.VContainer("Visibilidade das Malhas", classes="text-h6 text-center")
+
+        vuetify.VCheckbox(
+            v_model=("malha1_visivel", True),
+            on_icon="mdi-cube-outline",
+            off_icon="mdi-cube-off-outline",
+            classes="mx-1",
+            hide_details=True,
+            dense=True,
+            label="Malha Externa",
+        )
+
+        vuetify.VCheckbox(
+            v_model=("malha2_visivel", True),
+            on_icon="mdi-cube-outline",
+            off_icon="mdi-cube-off-outline",
+            classes="mx-1",
+            hide_details=True,
+            dense=True,
+            label="Malha Interna",
+        )
+
     with layout.content:
         with vuetify.VContainer(fluid=True, classes="pa-0 fill-height", ):
             lista_arquivos_malhas = [
@@ -313,6 +356,7 @@ with SinglePageWithDrawerLayout(server) as layout:
             ]
             gerar_view(lista_arquivos_malhas)
             view = vtk_widgets.VtkLocalView(renderWindow)
+            ctrl.view_update = view.update
 
 # -----------------------------------------------------------------------------
 # Main
