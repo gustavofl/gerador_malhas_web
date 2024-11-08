@@ -200,6 +200,7 @@ def submit_form():
 
         if response.status_code == 200:
             state.token = json.loads(response.text)['token']
+            state.progresso = 0
             state.monitorar_progresso = True
 
             log(f"Solicitacao de geracao de malha realizada com sucesso.")
@@ -243,7 +244,7 @@ def get_malhas():
             nome_novo = f'/deploy/vtu_files/malha2.vtu'
             os.rename(nome_antigo, nome_novo)
 
-            log(f"Malhas baixadas com sucesso.\n")
+            log(f"Malhas baixadas com sucesso.")
         else:
             log(f"Erro ao baixar dados do servidor. [Código {response.status_code}: {response.text}]")
     except Exception as error:
@@ -260,84 +261,101 @@ def update_visibilidade_malha2(malha2_visivel, **kwargs):
     malha2.SetVisibility(malha2_visivel)
     ctrl.view_update()
 
+@state.change("progresso")
+def ativar_btn_regarregar(progresso, **kwargs):
+    if(progresso == 100):
+        state.desabilitar_recarregar = False
+    else:
+        state.desabilitar_recarregar = True
+
 with SinglePageWithDrawerLayout(server) as layout:
 
     with layout.drawer:
-        vuetify.VSelect(
-            label="Função Implícita Externa",
-            v_model=("funcao_externa", "Coração"),
-            items=("options_funcao_externa", [
-                "Coração",
-                "Esfera Maior",
-                "Esfera Menor",
-                "Torus",
-                "3-Torus",
-            ]),
-        )
-        vuetify.VSelect(
-            label="Função Implícita Interna",
-            v_model=("funcao_interna", "-"),
-            items=("options_funcao_interna", [
-                "-",
-                "Coração",
-                "Esfera Maior",
-                "Esfera Menor",
-                "Torus",
-                "3-Torus",
-            ]),
-        )
+        with vuetify.VContainer(fluid=True, classes="pa-2", ):
+            vuetify.VSelect(
+                label="Função Implícita Externa",
+                v_model=("funcao_externa", "Coração"),
+                items=("options_funcao_externa", [
+                    "Coração",
+                    "Esfera Maior",
+                    "Esfera Menor",
+                    "Torus",
+                    "3-Torus",
+                ]),
+            )
+            vuetify.VSelect(
+                label="Função Implícita Interna",
+                v_model=("funcao_interna", "-"),
+                items=("options_funcao_interna", [
+                    "-",
+                    "Coração",
+                    "Esfera Maior",
+                    "Esfera Menor",
+                    "Torus",
+                    "3-Torus",
+                ]),
+            )
 
-        vuetify.VTextField(
-            label="Tamanho do Domínio",
-            v_model=("tamanho_dominio", 3),
-            type="number"
-        )
-        vuetify.VTextField(
-            label="Nível Máximo de Refinamento",
-            v_model=("nivel_refinamento", 3),
-            type="number"
-        )
-        vuetify.VTextField(
-            label="Quantidade de Blocos Nível Zero",
-            v_model=("qnt_blocos_zero", 4),
-            type="number"
-        )
+            vuetify.VTextField(
+                label="Tamanho do Domínio",
+                v_model=("tamanho_dominio", 3),
+                type="number"
+            )
+            vuetify.VTextField(
+                label="Nível Máximo de Refinamento",
+                v_model=("nivel_refinamento", 3),
+                type="number"
+            )
+            vuetify.VTextField(
+                label="Quantidade de Blocos Nível Zero",
+                v_model=("qnt_blocos_zero", 4),
+                type="number"
+            )
 
-        vuetify.VBtn("Gerar malha", click=submit_form)
+            with vuetify.VRow(classes="justify-center"):
+                vuetify.VBtn("Gerar malha", click=submit_form, color="blue")
 
-        # Barra de progresso
-        vuetify.VProgressLinear(
-            v_model=("progresso", 0),  # Barra de progresso vinculada ao estado
-            color="blue",
-            height=20,
-            rounded=True
-        )
+            with vuetify.VRow(classes="justify-center mt-5"):
+                vuetify.VProgressCircular(
+                    v_model=("progresso", 0),
+                    color="green",
+                    size=28,
+                    width=8,
+                    classes="my-auto mx-3",
+                    label="teste",
+                )
 
-        vuetify.VBtn("Recarregar página", click=remover_task_ctrl, href="/")
+                vuetify.VBtn(
+                    "Recarregar", 
+                    click=remover_task_ctrl, 
+                    href="/",
+                    disabled=("desabilitar_recarregar", True),
+                    color="green",
+                )
 
-        vuetify.VDivider(classes="mt-5")
+            vuetify.VDivider(classes="mt-5")
 
-        vuetify.VContainer("Visibilidade das Malhas", classes="text-h6 text-center")
+            vuetify.VContainer("Visibilidade das Malhas", classes="text-h6 text-center")
 
-        vuetify.VCheckbox(
-            v_model=("malha1_visivel", True),
-            on_icon="mdi-cube-outline",
-            off_icon="mdi-cube-off-outline",
-            classes="mx-1",
-            hide_details=True,
-            dense=True,
-            label="Malha Externa",
-        )
+            vuetify.VCheckbox(
+                v_model=("malha1_visivel", True),
+                on_icon="mdi-cube-outline",
+                off_icon="mdi-cube-off-outline",
+                classes="mx-1",
+                hide_details=True,
+                dense=True,
+                label="Malha Externa",
+            )
 
-        vuetify.VCheckbox(
-            v_model=("malha2_visivel", True),
-            on_icon="mdi-cube-outline",
-            off_icon="mdi-cube-off-outline",
-            classes="mx-1",
-            hide_details=True,
-            dense=True,
-            label="Malha Interna",
-        )
+            vuetify.VCheckbox(
+                v_model=("malha2_visivel", True),
+                on_icon="mdi-cube-outline",
+                off_icon="mdi-cube-off-outline",
+                classes="mx-1",
+                hide_details=True,
+                dense=True,
+                label="Malha Interna",
+            )
 
     with layout.content:
         with vuetify.VContainer(fluid=True, classes="pa-0 fill-height", ):
