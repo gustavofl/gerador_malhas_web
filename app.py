@@ -81,11 +81,14 @@ def carregar_vtu(nome_arquivo_malha):
 
     return actor
 
-def gerar_view(lista_arquivos_malhas):
+def gerar_view():
     global malha1, malha2
 
-    malha1 = carregar_vtu(lista_arquivos_malhas[0])
-    malha2 = carregar_vtu(lista_arquivos_malhas[1])
+    for actor in renderer.GetActors():
+        renderer.RemoveActor(actor)
+
+    malha1 = carregar_vtu(state.lista_arquivos_malhas[0])
+    malha2 = carregar_vtu(state.lista_arquivos_malhas[1])
 
     renderer.AddActor(malha1)
     renderer.AddActor(malha2)
@@ -134,6 +137,11 @@ state, ctrl = server.state, server.controller
 
 state.malha1_visivel = True
 state.malha2_visivel = True
+
+state.lista_arquivos_malhas = [
+    '/deploy/vtu_files/example/malha_externa.vtu',
+    '/deploy/vtu_files/example/malha_interna.vtu'
+]
 
 # -----------------------------------------------------------------------------
 # Background thread
@@ -222,7 +230,7 @@ def get_malhas():
         response = requests.post(f"{URL_API}/api/download", data=data)
 
         if response.status_code == 200:
-            dir_token = f'/deploy/vtu_files/{token}'
+            dir_token = f'/deploy/vtu_files/tmp_data/{token}'
 
             os.makedirs(dir_token, exist_ok=True)
 
@@ -236,13 +244,9 @@ def get_malhas():
             with tarfile.open(nome_completo_arquivo_tar, 'r:gz') as tar:
                 tar.extractall(path=dir_token)
 
-            nome_antigo = f'{dir_token}/simplexos_externos.vtu'
-            nome_novo = f'/deploy/vtu_files/malha1.vtu'
-            os.rename(nome_antigo, nome_novo)
+            state.lista_arquivos_malhas[0] = f'{dir_token}/simplexos_externos.vtu'
 
-            nome_antigo = f'{dir_token}/simplexos_internos.vtu'
-            nome_novo = f'/deploy/vtu_files/malha2.vtu'
-            os.rename(nome_antigo, nome_novo)
+            state.lista_arquivos_malhas[1] = f'{dir_token}/simplexos_internos.vtu'
 
             log(f"Malhas baixadas com sucesso.")
         else:
@@ -250,6 +254,12 @@ def get_malhas():
     except Exception as error:
         nome_funcao = inspect.currentframe().f_code.co_name
         log(f"Erro nao identificado em {nome_funcao}. [{repr(error)}]")
+
+def atualizar_malhas():
+    gerar_view()
+    state.malha1_visivel = True
+    state.malha2_visivel = True
+    ctrl.view_update()
 
 @state.change("malha1_visivel")
 def update_visibilidade_malha1(malha1_visivel, **kwargs):
@@ -327,8 +337,7 @@ with SinglePageWithDrawerLayout(server) as layout:
 
                 vuetify.VBtn(
                     "Recarregar", 
-                    click=remover_task_ctrl, 
-                    href="/",
+                    click=atualizar_malhas, 
                     disabled=("desabilitar_recarregar", True),
                     color="green",
                 )
@@ -359,11 +368,7 @@ with SinglePageWithDrawerLayout(server) as layout:
 
     with layout.content:
         with vuetify.VContainer(fluid=True, classes="pa-0 fill-height", ):
-            lista_arquivos_malhas = [
-                '/deploy/vtu_files/malha1.vtu',
-                '/deploy/vtu_files/malha2.vtu'
-            ]
-            gerar_view(lista_arquivos_malhas)
+            gerar_view()
             view = vtk_widgets.VtkLocalView(renderWindow)
             ctrl.view_update = view.update
 
