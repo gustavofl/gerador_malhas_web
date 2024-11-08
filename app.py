@@ -143,6 +143,8 @@ state.lista_arquivos_malhas = [
     '/deploy/vtu_files/example/malha_interna.vtu'
 ]
 
+state.token = None
+
 # -----------------------------------------------------------------------------
 # Background thread
 # -----------------------------------------------------------------------------
@@ -201,7 +203,8 @@ def submit_form():
             'funcao_interna': funcao_interna,
             'tamanho_dominio': tamanho_dominio,
             'nivel_refinamento': nivel_refinamento,
-            'qnt_blocos_zero': qnt_blocos_zero
+            'qnt_blocos_zero': qnt_blocos_zero,
+            'token': state.token,
         }
 
         response = requests.post(f"{URL_API}/api/run", data=data)
