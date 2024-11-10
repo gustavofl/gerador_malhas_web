@@ -13,9 +13,9 @@ from trame.widgets import vuetify, vtk as vtk_widgets
 
 import vtkmodules.vtkInteractionStyle
 import vtkmodules.vtkRenderingOpenGL2
-from vtkmodules.vtkCommonColor import vtkNamedColors
-from vtk import vtkXMLUnstructuredGridReader
-from vtkmodules.vtkRenderingCore import (
+from vtk import (
+    vtkNamedColors,
+    vtkXMLUnstructuredGridReader,
     vtkActor,
     vtkDataSetMapper,
     vtkRenderWindowInteractor,
@@ -25,14 +25,18 @@ from vtkmodules.vtkRenderingCore import (
 )
 
 # -----------------------------------------------------------------------------
-# VTK pipeline
+# Constantes
 # -----------------------------------------------------------------------------
 
 CURRENT_DIRECTORY = os.path.abspath(os.path.dirname(__file__))
 
 URL_API="http://gerador-old:8080"
-LOG_FILE="/deploy/server/logs/log.txt"
+LOG_FILE="/deploy/api.log"
 LOCAL_TIMEZONE="America/Recife"
+
+# -----------------------------------------------------------------------------
+# utils
+# -----------------------------------------------------------------------------
 
 def log(mensagem):
     utc_now = datetime.now()
@@ -42,6 +46,10 @@ def log(mensagem):
 
     with open(LOG_FILE, "a") as file:
         file.write(f"[{timestamp_local_str}] {mensagem}\n")
+
+# -----------------------------------------------------------------------------
+# VTK pipeline
+# -----------------------------------------------------------------------------
 
 colors = vtkNamedColors()
 
@@ -57,29 +65,40 @@ renderWindowInteractor.GetInteractorStyle().SetCurrentStyleToTrackballCamera()
 malha1 = None
 malha2 = None
 
-def carregar_vtu(nome_arquivo_malha):
-    # Read the source file.
-    reader = vtkXMLUnstructuredGridReader()
-    reader.SetFileName(nome_arquivo_malha)
-    reader.Update()
-    output = reader.GetOutput()
+class Malha:
+    def __init__(self, nome_arquivo_malha):
+        self.actors = []
+        self.actors.append(self.get_actor_from_vtu(nome_arquivo_malha))
 
-    mapper = vtkDataSetMapper()
-    mapper.SetInputData(output)
-    mapper.ScalarVisibilityOff()
+    def get_actor_from_vtu(self, nome_arquivo_malha):
+        # Read the source file.
+        reader = vtkXMLUnstructuredGridReader()
+        reader.SetFileName(nome_arquivo_malha)
+        reader.Update()
 
-    # Create the Actor
-    actor = vtkActor()
-    actor.SetMapper(mapper)
-    actor.GetProperty().EdgeVisibilityOn()
-    actor.GetProperty().SetLineWidth(2.0)
-    actor.GetProperty().SetColor(colors.GetColor3d("MistyRose"))
+        mapper = vtkDataSetMapper()
+        mapper.SetInputData(reader.GetOutput())
+        mapper.ScalarVisibilityOff()
 
-    backface = vtkProperty()
-    backface.SetColor(colors.GetColor3d('Tomato'))
-    actor.SetBackfaceProperty(backface)
+        backface = vtkProperty()
+        backface.SetColor(colors.GetColor3d('Tomato'))
 
-    return actor
+        # Create the Actor
+        actor = vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().EdgeVisibilityOn()
+        actor.GetProperty().SetLineWidth(2.0)
+        actor.GetProperty().SetColor(colors.GetColor3d("MistyRose"))
+        actor.SetBackfaceProperty(backface)
+
+        return actor
+    
+    def set_visibility(self, visivel):
+        for actor in self.actors:
+            actor.SetVisibility(visivel)
+
+    def get_actors(self):
+        return self.actors
 
 def gerar_view():
     global malha1, malha2
@@ -87,14 +106,18 @@ def gerar_view():
     for actor in renderer.GetActors():
         renderer.RemoveActor(actor)
 
-    malha1 = carregar_vtu(state.lista_arquivos_malhas[0])
-    malha2 = carregar_vtu(state.lista_arquivos_malhas[1])
+    malha1 = Malha(state.lista_arquivos_malhas[0])
+    malha2 = Malha(state.lista_arquivos_malhas[1])
 
-    renderer.AddActor(malha1)
-    renderer.AddActor(malha2)
+    for actor in malha1.get_actors(): renderer.AddActor(actor)
+    for actor in malha2.get_actors(): renderer.AddActor(actor)
 
     renderer.SetBackground(colors.GetColor3d('Wheat'))
     renderer.ResetCamera()
+
+# -----------------------------------------------------------------------------
+# backend connection
+# -----------------------------------------------------------------------------
 
 # Função para consultar o progresso da API
 def consultar_progresso():
@@ -120,65 +143,6 @@ def consultar_progresso():
         log(f"Erro nao identificado em {nome_funcao}. [{repr(error)}]")
     
     return 0
-
-def remover_task_ctrl():
-    try:
-        state.remover_task = True
-    except Exception as error:
-        nome_funcao = inspect.currentframe().f_code.co_name
-        log(f"Erro nao identificado em {nome_funcao}. [{repr(error)}]")
-
-# -----------------------------------------------------------------------------
-# Trame setup
-# -----------------------------------------------------------------------------
-
-server = get_server(client_type="vue2")
-state, ctrl = server.state, server.controller
-
-state.malha1_visivel = True
-state.malha2_visivel = True
-
-state.lista_arquivos_malhas = [
-    '/deploy/vtu_files/example/malha_externa.vtu',
-    '/deploy/vtu_files/example/malha_interna.vtu'
-]
-
-state.token = None
-
-# -----------------------------------------------------------------------------
-# Background thread
-# -----------------------------------------------------------------------------
-
-fator_progresso_geracao = 0.95
-
-async def atualizar_progresso(**kwargs):
-    while True:
-        with state:
-            if(state.monitorar_progresso):
-                if(state.progresso < 100*fator_progresso_geracao):
-                    progresso_geracao = consultar_progresso()
-
-                    state.progresso = progresso_geracao * fator_progresso_geracao
-                
-                elif(state.progresso == 100*fator_progresso_geracao):
-                    get_malhas()
-
-                    state.progresso = 100
-
-                    state.monitorar_progresso = False
-
-            if(state.remover_task):
-                ctrl.remove(atualizar_progresso)
-    
-        await asyncio.sleep(1)
-
-
-ctrl.on_server_ready.add_task(atualizar_progresso)
-
-
-# -----------------------------------------------------------------------------
-# Web App setup
-# -----------------------------------------------------------------------------
 
 # Função que será chamada ao clicar no botão de submit
 def submit_form():
@@ -258,6 +222,58 @@ def get_malhas():
         nome_funcao = inspect.currentframe().f_code.co_name
         log(f"Erro nao identificado em {nome_funcao}. [{repr(error)}]")
 
+# -----------------------------------------------------------------------------
+# Trame setup
+# -----------------------------------------------------------------------------
+
+server = get_server(client_type="vue2")
+state, ctrl = server.state, server.controller
+
+state.malha1_visivel = True
+state.malha2_visivel = True
+
+state.lista_arquivos_malhas = [
+    '/deploy/vtu_files/example/malha_externa.vtu',
+    '/deploy/vtu_files/example/malha_interna.vtu'
+]
+
+state.token = None
+
+# -----------------------------------------------------------------------------
+# Background thread
+# -----------------------------------------------------------------------------
+
+fator_progresso_geracao = 0.95
+
+async def atualizar_progresso(**kwargs):
+    while True:
+        with state:
+            if(state.monitorar_progresso):
+                if(state.progresso < 100*fator_progresso_geracao):
+                    progresso_geracao = consultar_progresso()
+
+                    state.progresso = progresso_geracao * fator_progresso_geracao
+                
+                elif(state.progresso == 100*fator_progresso_geracao):
+                    get_malhas()
+
+                    state.progresso = 100
+
+                    state.monitorar_progresso = False
+
+            if(state.remover_task):
+                ctrl.remove(atualizar_progresso)
+    
+        await asyncio.sleep(1)
+
+
+ctrl.on_server_ready.add_task(atualizar_progresso)
+
+
+# -----------------------------------------------------------------------------
+# Web App setup
+# -----------------------------------------------------------------------------
+
 def atualizar_malhas():
     gerar_view()
     state.malha1_visivel = True
@@ -266,12 +282,12 @@ def atualizar_malhas():
 
 @state.change("malha1_visivel")
 def update_visibilidade_malha1(malha1_visivel, **kwargs):
-    malha1.SetVisibility(malha1_visivel)
+    malha1.set_visibility(malha1_visivel)
     ctrl.view_update()
 
 @state.change("malha2_visivel")
 def update_visibilidade_malha2(malha2_visivel, **kwargs):
-    malha2.SetVisibility(malha2_visivel)
+    malha2.set_visibility(malha2_visivel)
     ctrl.view_update()
 
 @state.change("progresso")
