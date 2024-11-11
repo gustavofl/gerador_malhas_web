@@ -21,7 +21,12 @@ from vtk import (
     vtkRenderWindowInteractor,
     vtkProperty,
     vtkRenderer,
-    vtkRenderWindow
+    vtkRenderWindow,
+    vtkPlane,
+    vtkCutter,
+    vtkGeometryFilter,
+    vtkClipPolyData,
+    vtkPolyDataMapper,
 )
 
 # -----------------------------------------------------------------------------
@@ -33,6 +38,9 @@ CURRENT_DIRECTORY = os.path.abspath(os.path.dirname(__file__))
 URL_API="http://gerador-old:8080"
 LOG_FILE="/deploy/api.log"
 LOCAL_TIMEZONE="America/Recife"
+
+EXEMPLO_VTU_EXTERNO="/deploy/vtu_files/example/malha_externa.vtu"
+EXEMPLO_VTU_INTERNO="/deploy/vtu_files/example/malha_interna.vtu"
 
 # -----------------------------------------------------------------------------
 # utils
@@ -66,18 +74,28 @@ malha1 = None
 malha2 = None
 
 class Malha:
-    def __init__(self, nome_arquivo_malha):
+    def __init__(self):
         self.actors = []
-        self.actors.append(self.get_actor_from_vtu(nome_arquivo_malha))
+        self.vtu_grid_reader = None
 
-    def get_actor_from_vtu(self, nome_arquivo_malha):
-        # Read the source file.
-        reader = vtkXMLUnstructuredGridReader()
-        reader.SetFileName(nome_arquivo_malha)
-        reader.Update()
+        self.clipper = None
+        self.cutter = None
+        self.plane = None
+
+        self.invert_clip_x = False
+        self.clip_x = False
+
+    def load_vtu_file(self, nome_arquivo_malha):
+        self.vtu_grid_reader = vtkXMLUnstructuredGridReader()
+        self.vtu_grid_reader.SetFileName(nome_arquivo_malha)
+        self.vtu_grid_reader.Update()
+
+    def gerar_malha_sem_cortes(self):
+        self.deletar_actors()
+        self.clip_x = False
 
         mapper = vtkDataSetMapper()
-        mapper.SetInputData(reader.GetOutput())
+        mapper.SetInputData(self.vtu_grid_reader.GetOutput())
         mapper.ScalarVisibilityOff()
 
         backface = vtkProperty()
@@ -91,7 +109,88 @@ class Malha:
         actor.GetProperty().SetColor(colors.GetColor3d("MistyRose"))
         actor.SetBackfaceProperty(backface)
 
-        return actor
+        self.actors = [actor]
+    
+    def gerar_malha_corte_x(self):
+        self.deletar_actors()
+        self.clip_x = True
+
+        # cores
+        backProp = vtkProperty()
+        backProp.SetColor(colors.GetColor3d('Tomato'))
+
+        cor_malha = colors.GetColor3d('MistyRose')
+
+        # plano de corte
+        self.plane = vtkPlane()
+        self.plane.SetOrigin(0, 0, 0)
+        self.plane.SetNormal(1, 0, 0)
+
+        # mostrando fatia visivel da malha
+
+        vtuFilter = vtkGeometryFilter()
+        vtuFilter.SetInputConnection(self.vtu_grid_reader.GetOutputPort())
+
+        self.clipper = vtkClipPolyData()
+        self.clipper.SetInputConnection(vtuFilter.GetOutputPort())
+        self.clipper.SetClipFunction(self.plane)
+        self.clipper.GenerateClipScalarsOn()
+        self.clipper.GenerateClippedOutputOn()
+        self.clipper.SetValue(0)
+
+        clipMapper = vtkPolyDataMapper()
+        clipMapper.SetInputConnection(self.clipper.GetClippedOutputPort())
+        clipMapper.ScalarVisibilityOff()
+
+        clipActor = vtkActor()
+        clipActor.SetMapper(clipMapper)
+        clipActor.GetProperty().SetColor(cor_malha)
+        clipActor.GetProperty().EdgeVisibilityOn()
+        clipActor.GetProperty().SetLineWidth(2.0)
+        clipActor.SetBackfaceProperty(backProp)
+
+        # mostrando plano de corte
+
+        self.cutter = vtkCutter()
+        self.cutter.SetInputConnection(self.vtu_grid_reader.GetOutputPort())
+        self.cutter.SetCutFunction(self.plane)
+        self.cutter.GenerateCutScalarsOn()
+        self.cutter.SetValue(0, 0)
+        self.cutter.Update()
+
+        mapperCut0 = vtkDataSetMapper()
+        mapperCut0.SetInputData(self.cutter.GetOutput())
+        mapperCut0.ScalarVisibilityOff()
+
+        CutActor0 = vtkActor()
+        CutActor0.SetMapper(mapperCut0)
+        CutActor0.GetProperty().SetColor(cor_malha)
+        CutActor0.GetProperty().EdgeVisibilityOn()
+        CutActor0.GetProperty().SetLineWidth(2.0)
+        CutActor0.SetBackfaceProperty(backProp)
+
+        self.actors = [
+            clipActor,
+            CutActor0
+        ]
+    
+    def change_offset_x(self, offset_x):
+        if(self.clip_x):
+            self.plane.SetOrigin(offset_x, 0, 0)
+            self.cutter.Update()
+    
+    def change_direc_cut_x(self, invert):
+        if(self.clip_x):
+            mult_invert = 1
+            if(invert):
+                mult_invert = -1
+            
+            self.plane.SetNormal(mult_invert, 0, 0)
+
+    def deletar_actors(self):
+        for actor in self.actors:
+            del actor
+        self.actors = []
     
     def set_visibility(self, visivel):
         for actor in self.actors:
@@ -106,8 +205,17 @@ def gerar_view():
     for actor in renderer.GetActors():
         renderer.RemoveActor(actor)
 
-    malha1 = Malha(state.lista_arquivos_malhas[0])
-    malha2 = Malha(state.lista_arquivos_malhas[1])
+    if(malha1 == None): malha1 = Malha()
+    if(malha2 == None): malha2 = Malha()
+
+    malha1.load_vtu_file(state.lista_arquivos_malhas[0])
+    malha2.load_vtu_file(state.lista_arquivos_malhas[1])
+
+    # malha1.gerar_malha_sem_cortes()
+    # malha2.gerar_malha_sem_cortes()
+
+    malha1.gerar_malha_corte_x()
+    malha2.gerar_malha_corte_x()
 
     for actor in malha1.get_actors(): renderer.AddActor(actor)
     for actor in malha2.get_actors(): renderer.AddActor(actor)
@@ -233,8 +341,8 @@ state.malha1_visivel = True
 state.malha2_visivel = True
 
 state.lista_arquivos_malhas = [
-    '/deploy/vtu_files/example/malha_externa.vtu',
-    '/deploy/vtu_files/example/malha_interna.vtu'
+    EXEMPLO_VTU_EXTERNO,
+    EXEMPLO_VTU_INTERNO
 ]
 
 state.token = None
@@ -296,6 +404,18 @@ def ativar_btn_regarregar(progresso, **kwargs):
         state.desabilitar_recarregar = False
     else:
         state.desabilitar_recarregar = True
+
+@state.change("offset_clip_x")
+def update_offset_cut_x(offset_clip_x, **kwargs):
+    malha1.change_offset_x(offset_clip_x)
+    malha2.change_offset_x(offset_clip_x)
+    ctrl.view_update()
+
+@state.change("invert_clip_x")
+def update_direc_cut_x(invert_clip_x, **kwargs):
+    malha1.change_direc_cut_x(invert_clip_x)
+    malha2.change_direc_cut_x(invert_clip_x)
+    ctrl.view_update()
 
 with SinglePageWithDrawerLayout(server) as layout:
 
@@ -383,6 +503,27 @@ with SinglePageWithDrawerLayout(server) as layout:
                 hide_details=True,
                 dense=True,
                 label="Malha Interna",
+            )
+
+            vuetify.VDivider(classes="mt-5")
+
+            vuetify.VContainer("Planos de corte", classes="text-h6 text-center")
+
+            vuetify.VSlider(
+                label="X",
+                v_model=("offset_clip_x", 0),
+                min=-1.5, max=1.5, step=0.05,
+                dense=True, hide_details=True,
+            )
+
+            vuetify.VCheckbox(
+                v_model=("invert_clip_x", False),
+                on_icon="mdi-cube-outline",
+                off_icon="mdi-cube-off-outline",
+                classes="mx-1",
+                hide_details=True,
+                dense=True,
+                label="Inverter corte do eixo X",
             )
 
     with layout.content:
