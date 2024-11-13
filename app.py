@@ -24,9 +24,7 @@ from vtk import (
     vtkRenderWindow,
     vtkPlane,
     vtkCutter,
-    vtkGeometryFilter,
-    vtkClipPolyData,
-    vtkPolyDataMapper,
+    vtkClipDataSet,
 )
 
 # -----------------------------------------------------------------------------
@@ -78,12 +76,19 @@ class Malha:
         self.actors = []
         self.vtu_grid_reader = None
 
-        self.clipper = None
-        self.cutter = None
-        self.plane = None
-
+        # eixo x
+        self.clipper_x = None
+        self.cutter_x = None
+        self.plane_x = None
         self.invert_clip_x = False
         self.clip_x = False
+
+        # eixo y
+        self.clipper_y = None
+        self.cutter_y = None
+        self.plane_y = None
+        self.invert_clip_y = False
+        self.clip_y = False
 
     def load_vtu_file(self, nome_arquivo_malha):
         self.vtu_grid_reader = vtkXMLUnstructuredGridReader()
@@ -114,6 +119,7 @@ class Malha:
     def gerar_malha_corte_x(self):
         self.deletar_actors()
         self.clip_x = True
+        self.clip_y = True
 
         # cores
         backProp = vtkProperty()
@@ -121,63 +127,74 @@ class Malha:
 
         cor_malha = colors.GetColor3d('MistyRose')
 
-        # plano de corte
-        self.plane = vtkPlane()
-        self.plane.SetOrigin(0, 0, 0)
-        self.plane.SetNormal(1, 0, 0)
+        # plano de corte X
+        self.plane_x = vtkPlane()
+        self.plane_x.SetOrigin(0, 0, 0)
+        self.plane_x.SetNormal(1, 0, 0)
 
-        # mostrando fatia visivel da malha
+        # plano de corte Y
+        self.plane_y = vtkPlane()
+        self.plane_y.SetOrigin(0, 0, 0)
+        self.plane_y.SetNormal(0, 1, 0)
 
-        vtuFilter = vtkGeometryFilter()
-        vtuFilter.SetInputConnection(self.vtu_grid_reader.GetOutputPort())
+        # pipeline construcao malha
 
-        self.clipper = vtkClipPolyData()
-        self.clipper.SetInputConnection(vtuFilter.GetOutputPort())
-        self.clipper.SetClipFunction(self.plane)
-        self.clipper.GenerateClipScalarsOn()
-        self.clipper.GenerateClippedOutputOn()
-        self.clipper.SetValue(0)
+        # plano de corte X
 
-        clipMapper = vtkPolyDataMapper()
-        clipMapper.SetInputConnection(self.clipper.GetClippedOutputPort())
-        clipMapper.ScalarVisibilityOff()
+        clipper_plane_x = vtkClipDataSet()
+        clipper_plane_x.SetInputData(self.vtu_grid_reader.GetOutput())
+        clipper_plane_x.SetClipFunction(self.plane_x)
+        clipper_plane_x.GenerateClipScalarsOn()
+        clipper_plane_x.GenerateClippedOutputOn()
+        clipper_plane_x.SetValue(0)
 
-        clipActor = vtkActor()
-        clipActor.SetMapper(clipMapper)
-        clipActor.GetProperty().SetColor(cor_malha)
-        clipActor.GetProperty().EdgeVisibilityOn()
-        clipActor.GetProperty().SetLineWidth(2.0)
-        clipActor.SetBackfaceProperty(backProp)
+        self.cutter_x = vtkCutter()
+        self.cutter_x.SetInputConnection(clipper_plane_x.GetOutputPort())
+        self.cutter_x.SetCutFunction(self.plane_x)
+        self.cutter_x.GenerateCutScalarsOn()
+        self.cutter_x.SetValue(0, 0)
+        self.cutter_x.Update()
 
-        # mostrando plano de corte
+        # plano de corte Y
 
-        self.cutter = vtkCutter()
-        self.cutter.SetInputConnection(self.vtu_grid_reader.GetOutputPort())
-        self.cutter.SetCutFunction(self.plane)
-        self.cutter.GenerateCutScalarsOn()
-        self.cutter.SetValue(0, 0)
-        self.cutter.Update()
+        clipper_plane_y = vtkClipDataSet()
+        clipper_plane_y.SetInputData(clipper_plane_x.GetOutput())
+        clipper_plane_y.SetClipFunction(self.plane_y)
+        clipper_plane_y.GenerateClipScalarsOn()
+        clipper_plane_y.GenerateClippedOutputOn()
+        clipper_plane_y.SetValue(0)
 
-        mapperCut0 = vtkDataSetMapper()
-        mapperCut0.SetInputData(self.cutter.GetOutput())
-        mapperCut0.ScalarVisibilityOff()
+        self.cutter_y = vtkCutter()
+        self.cutter_y.SetInputConnection(clipper_plane_y.GetOutputPort())
+        self.cutter_y.SetCutFunction(self.plane_y)
+        self.cutter_y.GenerateCutScalarsOn()
+        self.cutter_y.SetValue(0, 0)
+        self.cutter_y.Update()
 
-        CutActor0 = vtkActor()
-        CutActor0.SetMapper(mapperCut0)
-        CutActor0.GetProperty().SetColor(cor_malha)
-        CutActor0.GetProperty().EdgeVisibilityOn()
-        CutActor0.GetProperty().SetLineWidth(2.0)
-        CutActor0.SetBackfaceProperty(backProp)
+        # mapper
+
+        mapper = vtkDataSetMapper()
+        mapper.SetInputData(clipper_plane_y.GetOutput())
+        mapper.ScalarVisibilityOff()
+
+        # actor
+
+        actor = vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(cor_malha)
+        actor.GetProperty().EdgeVisibilityOn()
+        actor.GetProperty().SetLineWidth(2.0)
+        actor.SetBackfaceProperty(backProp)
 
         self.actors = [
-            clipActor,
-            CutActor0
+            actor,
         ]
     
     def change_offset_x(self, offset_x):
         if(self.clip_x):
-            self.plane.SetOrigin(offset_x, 0, 0)
-            self.cutter.Update()
+            self.plane_x.SetOrigin(offset_x, 0, 0)
+            self.cutter_x.Update()
+            self.cutter_y.Update()
     
     def change_direc_cut_x(self, invert):
         if(self.clip_x):
@@ -185,7 +202,25 @@ class Malha:
             if(invert):
                 mult_invert = -1
             
-            self.plane.SetNormal(mult_invert, 0, 0)
+            self.plane_x.SetNormal(mult_invert, 0, 0)
+            self.cutter_x.Update()
+            self.cutter_y.Update()
+    
+    def change_offset_y(self, offset_y):
+        if(self.clip_y):
+            self.plane_y.SetOrigin(0, offset_y, 0)
+            self.cutter_x.Update()
+            self.cutter_y.Update()
+    
+    def change_direc_cut_y(self, invert):
+        if(self.clip_y):
+            mult_invert = 1
+            if(invert):
+                mult_invert = -1
+            
+            self.plane_y.SetNormal(0, mult_invert, 0)
+            self.cutter_x.Update()
+            self.cutter_y.Update()
 
     def deletar_actors(self):
         for actor in self.actors:
@@ -417,6 +452,18 @@ def update_direc_cut_x(invert_clip_x, **kwargs):
     malha2.change_direc_cut_x(invert_clip_x)
     ctrl.view_update()
 
+@state.change("offset_clip_y")
+def update_offset_cut_y(offset_clip_y, **kwargs):
+    malha1.change_offset_y(offset_clip_y)
+    malha2.change_offset_y(offset_clip_y)
+    ctrl.view_update()
+
+@state.change("invert_clip_y")
+def update_direc_cut_y(invert_clip_y, **kwargs):
+    malha1.change_direc_cut_y(invert_clip_y)
+    malha2.change_direc_cut_y(invert_clip_y)
+    ctrl.view_update()
+
 with SinglePageWithDrawerLayout(server) as layout:
 
     with layout.drawer:
@@ -512,7 +559,7 @@ with SinglePageWithDrawerLayout(server) as layout:
             vuetify.VSlider(
                 label="X",
                 v_model=("offset_clip_x", 0),
-                min=-1.5, max=1.5, step=0.05,
+                min=-1.5, max=1.5, step=0.001,
                 dense=True, hide_details=True,
             )
 
@@ -524,6 +571,23 @@ with SinglePageWithDrawerLayout(server) as layout:
                 hide_details=True,
                 dense=True,
                 label="Inverter corte do eixo X",
+            )
+
+            vuetify.VSlider(
+                label="Y",
+                v_model=("offset_clip_y", 0),
+                min=-1.5, max=1.5, step=0.001,
+                dense=True, hide_details=True,
+            )
+
+            vuetify.VCheckbox(
+                v_model=("invert_clip_y", False),
+                on_icon="mdi-cube-outline",
+                off_icon="mdi-cube-off-outline",
+                classes="mx-1",
+                hide_details=True,
+                dense=True,
+                label="Inverter corte do eixo Y",
             )
 
     with layout.content:
